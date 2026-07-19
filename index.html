@@ -432,6 +432,18 @@ function buildBackground(){
 function buildGrid(){
   gridEl.innerHTML = "";
   tiles.length = 0;
+
+  // Shuffle the image set each load so every image circulates across the
+  // grid — with more images than tiles, a different subset shows each time.
+  let imgPool = [];
+  if(CONFIG.useImages && CONFIG.images.length){
+    imgPool = CONFIG.images.slice();
+    for(let k=imgPool.length-1;k>0;k--){
+      const j = Math.floor(Math.random() * (k+1));
+      [imgPool[k], imgPool[j]] = [imgPool[j], imgPool[k]];
+    }
+  }
+
   for(let i=0;i<GRID_SIZE;i++){
     const tile = document.createElement("button");
     tile.className = "tile";
@@ -452,7 +464,7 @@ function buildGrid(){
     if(CONFIG.useImages && CONFIG.images.length){
       const img = document.createElement("img");
       img.alt = "";
-      img.src = CONFIG.imageDir + CONFIG.images[i % CONFIG.images.length];
+      img.src = CONFIG.imageDir + imgPool[i % imgPool.length];
       img.addEventListener("load",  ()=>{ iconWrap.style.display = "none"; });
       img.addEventListener("error", ()=>{ img.remove(); iconWrap.style.display = ""; });
       inner.appendChild(img);
