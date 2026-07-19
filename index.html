@@ -240,9 +240,9 @@
     </div>
 
     <div id="overScreen" class="screen" hidden>
-      <h1>Game over</h1>
+      <h1 id="overTitle">Game over</h1>
       <div class="score-big" id="finalScore">0</div>
-      <div class="score-label">Longest sequence</div>
+      <div class="score-label" id="overLabel">Longest sequence</div>
       <button id="againBtn" class="btn">Play again</button>
       <div class="best-line" id="overBest" hidden></div>
     </div>
@@ -354,6 +354,7 @@ const sndGood  = ()=> tone(880, 0.12, "triangle", 0.20);
 const sndWrong = ()=>{ tone(150, 0.45, "sawtooth", 0.18); tone(110, 0.45, "sine", 0.16); };
 const sndDing  = ()=>{ tone(659.25, 0.16, "sine", 0.22); tone(987.77, 0.32, "sine", 0.20, 0.12); };
 const sndStart = ()=>{ tone(523.25, 0.14, "sine", 0.2); tone(783.99, 0.22, "sine", 0.2, 0.1); };
+const sndWin   = ()=>{ tone(523.25,0.14,"sine",0.2); tone(659.25,0.14,"sine",0.2,0.12); tone(783.99,0.14,"sine",0.2,0.24); tone(1046.5,0.34,"sine",0.22,0.36); };
 
 /* ============================================================================
    ELEMENTS
@@ -371,6 +372,8 @@ const overScreen = document.getElementById("overScreen");
 const startBtn   = document.getElementById("startBtn");
 const againBtn   = document.getElementById("againBtn");
 const finalScore = document.getElementById("finalScore");
+const overTitle  = document.getElementById("overTitle");
+const overLabel  = document.getElementById("overLabel");
 const toast      = document.getElementById("toast");
 const toastBubble= document.getElementById("toastBubble");
 const startBest  = document.getElementById("startBest");
@@ -380,6 +383,7 @@ const overBest   = document.getElementById("overBest");
    STATE
    ========================================================================== */
 const GRID_SIZE = 16;
+const MAX_ROUNDS = 25;   // game caps here - clearing round 25 is a win
 let sequence = [];
 let inputIndex = 0;
 let round = 1;
@@ -556,12 +560,31 @@ function roundComplete(){
   phase = "playing";
   gridEl.classList.add("locked");
   sndDing(); hideStatus();
+  if(round >= MAX_ROUNDS){          // cleared the final round - that's a win
+    showToast("Perfect!", "All " + MAX_ROUNDS + " rounds");
+    setTimeout(()=>{ hideToast(); if(phase === "playing") gameWon(); }, CONFIG.nextRoundMs);
+    return;
+  }
   showToast("Nice!", "Next round · " + (round + 1) + " tiles");
   setTimeout(()=>{
     hideToast();
     if(phase !== "playing") return;
     nextRound(false);
   }, CONFIG.nextRoundMs);
+}
+function gameWon(){
+  phase = "over";
+  ++generation;
+  gridEl.classList.add("locked");
+  sndWin();
+  const score = round;   // completed all MAX_ROUNDS rounds
+  if(score > bestScore){ bestScore = score; localStorage.setItem("egm_best", String(bestScore)); }
+  hideStatus(); hideToast();
+  finalScore.textContent = score;
+  overTitle.textContent = "You did it!";
+  overLabel.textContent = "Perfect - all " + MAX_ROUNDS + " rounds";
+  updateBestLines();
+  overScreen.hidden = false;
 }
 function gameOver(tile){
   phase = "over";
@@ -577,6 +600,8 @@ function gameOver(tile){
   setTimeout(()=>{
     hideStatus();
     finalScore.textContent = score;
+    overTitle.textContent = "Game over";
+    overLabel.textContent = "Longest sequence";
     updateBestLines();
     overScreen.hidden = false;
   }, 700);
