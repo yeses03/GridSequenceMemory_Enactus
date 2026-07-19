@@ -70,6 +70,9 @@
   .brand{ display:flex; align-items:center; gap:16px; min-width:0; }
   .brand-mark{ height:52px; flex:0 0 auto; display:flex; align-items:center; }
   .brand-mark svg,.brand-mark img{ height:100%; width:auto; display:block; }
+  /* The logo's ink sits ~12.5% low in its own canvas (small arrow on top,
+     dense text below), so nudge it up to optically centre with the divider. */
+  .brand-mark img{ transform:translateY(-12.5%); }
   .brand-text{ line-height:1; min-width:0; }
   .wordmark{ font-weight:700; font-size:19px; letter-spacing:.5px; color:#fff; } /* lowercase, like the logo */
   .brand-sub{ font-size:11px; font-weight:500; color:#B9BABC; letter-spacing:.2px; margin-top:3px; white-space:nowrap; }
