@@ -1,0 +1,6 @@
+# macOS Finder metadata — not part of the project
+.DS_Store
+**/.DS_Store
+
+# Local build output (regenerate with the zip step when needed)
+build/
