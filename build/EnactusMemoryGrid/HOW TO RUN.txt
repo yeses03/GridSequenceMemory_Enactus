@@ -1,0 +1,48 @@
+ENACTUS VIT CHENNAI — MEMORY GRID
+=================================
+
+HOW TO RUN (any computer — Windows, Mac, ChromeOS, tablet)
+----------------------------------------------------------
+1. Keep this whole folder together (index.html + the images folder).
+2. Double-click  index.html
+   -> It opens in the web browser and the game starts. That's it.
+
+If double-clicking opens a text/code editor instead:
+   Right-click index.html  ->  Open With  ->  Chrome / Edge / Safari / Firefox
+
+No internet needed. No installing anything. No setup.
+
+
+BOOTH / FULL-SCREEN MODE
+------------------------
+Once it's open in the browser, hide the browser bars so it looks like a kiosk:
+   Windows:  press  F11
+   Mac:      View menu -> Enter Full Screen  (or Ctrl + Cmd + F)
+
+
+SOUND
+-----
+Browsers stay silent until the first tap. Sound switches on the moment
+someone presses "Start game" — this is normal. There's a mute button in
+the top-right corner for a loud room.
+
+
+ADDING REAL TILE IMAGES LATER (optional)
+----------------------------------------
+1. Put your images (8-16 of them) into the  images  folder in this folder.
+2. Open index.html in a text editor and find the CONFIG block near the top
+   of the <script>. Set:
+        useImages: true
+   and list your filenames in:
+        images: ["file1.png", "file2.png", ...]
+3. If an image is missing, that tile just falls back to its icon — the game
+   never breaks.
+
+Official Enactus logo file (optional): drop it into the images folder and set
+   logoFile: "your-logo.svg"
+in the same CONFIG block. Use a transparent-background file so it sits cleanly
+on the black header.
+
+
+Questions? This is a single self-contained file — you can always just
+re-copy index.html anywhere and double-click it.

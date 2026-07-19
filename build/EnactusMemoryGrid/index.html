@@ -1,0 +1,645 @@
+<!--
+  Enactus VIT Chennai — Memory Grid
+  Single self-contained file. No build tools, no server, no external network needed.
+  Just open this file in any browser.
+
+  ── SWAPPING IN REAL IMAGES LATER ────────────────────────────────────────────
+  1. Drop your images into an `images/` folder next to this file.
+  2. In the CONFIG block near the top of the <script>, set:  useImages: true
+  3. List your filenames in CONFIG.images (8–16 of them).
+  If an image is missing / fails to load, the tile automatically falls back to
+  its placeholder icon — the game logic never changes.
+
+  DESIGN: solid colours only (no gradients), flat surfaces, Enactus black/gold/
+  white/gray palette, geometric type (Montserrat / Avenir Next). The faint
+  drifting arrows in the background are the Enactus mark, recreated as vector.
+  If you have the official arrow as an SVG/PNG, drop it in for a 1:1 match.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Enactus VIT Chennai — Memory Grid</title>
+
+<!-- Montserrat if online; Avenir Next / system geometric sans if offline. Either looks right. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#141414;        /* near-black, the Enactus field colour */
+    --gold:#FFC222;       /* primary accent */
+    --gold-dark:#E0A400;  /* solid secondary gold (arrow fold, borders) */
+    --gray:#515356;       /* body text */
+    --gray-2:#8B8E91;     /* muted text */
+    --bg:#F5F4F0;         /* flat light background */
+    --card:#FFFFFF;
+    --line:#E4E3DC;       /* hairline borders */
+    --line-strong:#D2D1C8;
+    --radius:14px;
+    --radius-sm:11px;
+    --font:"Montserrat","Avenir Next","Avenir","Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:var(--font);
+    background:var(--bg);
+    color:var(--gray);
+    display:flex;
+    flex-direction:column;
+    min-height:100%;
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:manipulation;
+  }
+
+  /* ── Background arrow motif (subtle drift) ───────────── */
+  .bg{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+  .bg-arrow{ position:absolute; line-height:0; will-change:transform; animation:drift ease-in-out infinite alternate; }
+  .bg-arrow svg{ display:block; width:100%; height:100%; }
+  @keyframes drift{
+    from{ transform:translateY(0) rotate(var(--r,0deg)); }
+    to  { transform:translateY(-22px) rotate(var(--r,0deg)); }
+  }
+
+  header,main,footer{ position:relative; z-index:1; }
+
+  /* ── Header (black lock-up bar, echoes the logo) ─────── */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px;
+    padding:14px clamp(16px,4vw,32px);
+    background:var(--ink);
+    flex:0 0 auto;
+  }
+  .brand{ display:flex; align-items:center; gap:14px; min-width:0; }
+  .brand-mark{ width:34px; height:34px; flex:0 0 auto; }
+  .brand-mark svg{ width:100%; height:100%; display:block; }
+  .brand-text{ line-height:1; min-width:0; }
+  .wordmark{ font-weight:700; font-size:19px; letter-spacing:.5px; color:#fff; } /* lowercase, like the logo */
+  .brand-sub{ font-size:11px; font-weight:500; color:#B9BABC; letter-spacing:.2px; margin-top:3px; white-space:nowrap; }
+  .brand-div{ width:1px; height:30px; background:rgba(255,255,255,.16); flex:0 0 auto; }
+  .game-label{ font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--gold); white-space:nowrap; }
+
+  .icon-btn{
+    width:44px; height:44px; border-radius:var(--radius-sm); flex:0 0 auto;
+    border:1.5px solid rgba(255,255,255,.22);
+    background:transparent; color:#fff; cursor:pointer;
+    display:grid; place-items:center; transition:transform .12s ease, background .15s, border-color .15s;
+  }
+  .icon-btn:hover{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.4); }
+  .icon-btn:active{ transform:scale(.9); }
+  .icon-btn svg{ width:22px; height:22px; }
+  .icon-btn .off{ display:none; }
+  .icon-btn.muted .on{ display:none; }
+  .icon-btn.muted .off{ display:block; color:#9A9B9D; }
+
+  @media (max-width:560px){
+    .brand-sub{ display:none; }
+    .brand-div,.game-label{ display:none; }
+  }
+
+  /* ── Stage ──────────────────────────────────────────── */
+  main{
+    flex:1 1 auto;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:10px clamp(14px,4vw,30px) clamp(18px,4vh,36px);
+  }
+  .stage{ position:relative; width:min(92vw, 552px, 76vh); }
+
+  .statusbar{ height:50px; display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:14px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:9px;
+    padding:9px 16px; border-radius:999px;
+    background:var(--card); border:1.5px solid var(--line);
+    font-weight:700; font-size:15px; color:var(--gray);
+  }
+  .chip .dot{ width:9px; height:9px; border-radius:50%; background:var(--gray-2); }
+  .chip.watch{ border-color:var(--gold-dark); color:var(--ink); }
+  .chip.watch .dot{ background:var(--gold); animation:pulseDot 1s infinite; }
+  .chip.turn{ border-color:var(--ink); color:var(--ink); }
+  .chip.turn .dot{ background:var(--ink); }
+  #roundChip .num{ color:var(--gold-dark); }
+  .bounce{ animation:bounce .48s ease; }
+  @keyframes pulseDot{ 0%,100%{opacity:1} 50%{opacity:.2} }
+  @keyframes bounce{ 0%{transform:scale(1)} 35%{transform:scale(1.22)} 65%{transform:scale(.95)} 100%{transform:scale(1)} }
+
+  /* ── Grid ───────────────────────────────────────────── */
+  .grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(9px,2.3vw,16px); }
+  .tile{
+    position:relative; aspect-ratio:1/1;
+    border-radius:var(--radius);
+    background:var(--card);
+    border:1.5px solid var(--line);
+    cursor:pointer;
+    display:grid; place-items:center; overflow:hidden;
+    color:var(--gray-2);
+    transition:transform .12s cubic-bezier(.34,1.4,.64,1), border-color .12s;
+    will-change:transform;
+  }
+  .tile .tile-inner{ position:absolute; inset:0; display:grid; place-items:center; }
+  .tile .lit-overlay{ position:absolute; inset:0; z-index:1; background:var(--gold); opacity:0; transition:opacity .16s ease; }
+  .tile svg,.tile img{ position:relative; z-index:2; width:44%; height:44%; object-fit:contain; transition:transform .16s ease, color .16s ease; }
+  .tile img{ width:72%; height:72%; border-radius:9px; }
+
+  /* solid gold flash — no gradient, no glow */
+  .tile.lit{ border-color:var(--gold-dark); }
+  .tile.lit .lit-overlay{ opacity:1; }
+  .tile.lit svg{ color:var(--ink); transform:scale(1.1); }
+
+  .tile.press{ transform:scale(.93); }
+
+  /* correct tap = gold flash (on-palette) */
+  .tile.good .lit-overlay{ opacity:1; }
+  .tile.good svg{ color:var(--ink); transform:scale(1.08); }
+
+  /* wrong tap = dark flash + shake (no red — stays on brand) */
+  .tile.bad .lit-overlay{ background:var(--ink); opacity:1; }
+  .tile.bad svg{ color:#fff; }
+  .tile.shake{ animation:shake .42s cubic-bezier(.36,.07,.19,.97); }
+  @keyframes shake{
+    10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-8px)} 40%,60%{transform:translateX(8px)}
+  }
+
+  /* attract-mode: flat gold fill fade, gentle */
+  .tile.attract .lit-overlay{ animation:attract 1.6s ease; }
+  .tile.attract svg{ animation:attractIcon 1.6s ease; }
+  @keyframes attract{ 0%,100%{opacity:0} 50%{opacity:.55} }
+  @keyframes attractIcon{ 0%,100%{color:var(--gray-2);transform:none} 50%{color:var(--ink);transform:scale(1.05)} }
+
+  .grid.locked .tile{ cursor:default; }
+
+  /* ── Overlay screens (solid, no blur) ───────────────── */
+  .screen{
+    position:absolute; inset:-1px; z-index:20;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:26px;
+    background:var(--bg);
+    border-radius:calc(var(--radius) + 4px);
+  }
+  .screen[hidden]{ display:none; }
+  .screen h1{ margin:0 0 8px; font-size:clamp(28px,6.5vw,42px); font-weight:800; color:var(--ink); letter-spacing:-.5px; }
+  .screen p{ margin:0 0 28px; font-size:16px; color:var(--gray-2); font-weight:500; max-width:330px; line-height:1.55; }
+
+  .btn{
+    appearance:none; cursor:pointer; font-family:inherit; font-weight:800; letter-spacing:.3px;
+    background:var(--gold); color:var(--ink);
+    border:2px solid var(--gold-dark);
+    padding:18px 44px; border-radius:var(--radius-sm); font-size:19px;
+    transition:transform .12s ease, background .15s;
+  }
+  .btn:hover{ background:var(--gold-dark); }
+  .btn:active{ transform:scale(.96); }
+  .btn.pulse{ animation:pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.045)} }
+
+  .score-big{ font-size:clamp(66px,19vw,112px); font-weight:800; line-height:1; color:var(--gold-dark); margin:4px 0 2px; }
+  .score-label{ font-size:13px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:var(--gray-2); margin-bottom:24px; }
+  .best-line{ margin-top:20px; font-size:13px; font-weight:600; color:var(--gray-2); letter-spacing:.3px; }
+
+  /* ── Toast ──────────────────────────────────────────── */
+  .toast{ position:absolute; inset:0; z-index:30; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .toast[hidden]{ display:none; }
+  .toast .bubble{
+    background:var(--ink); color:#fff;
+    padding:20px 34px; border-radius:var(--radius);
+    font-size:clamp(20px,4.5vw,27px); font-weight:800;
+    animation:pop .3s ease;
+  }
+  .toast .bubble small{ display:block; font-size:13px; font-weight:600; color:var(--gold); margin-top:5px; letter-spacing:1px; text-transform:uppercase; }
+  @keyframes pop{ 0%{transform:scale(.85);opacity:0} 100%{transform:scale(1);opacity:1} }
+
+  footer{ flex:0 0 auto; text-align:center; padding:10px; font-size:12px; color:var(--gray-2); font-weight:500; }
+  footer b{ color:var(--gray); font-weight:700; }
+</style>
+
+<div class="bg" id="bg" aria-hidden="true"></div>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark" id="brandMark" aria-hidden="true"></span>
+    <span class="brand-text">
+      <span class="wordmark">enactus</span>
+      <span class="brand-sub">Vellore Institute of Technology, Chennai</span>
+    </span>
+    <span class="brand-div"></span>
+    <span class="game-label">Memory Grid</span>
+  </div>
+  <button id="muteBtn" class="icon-btn" aria-label="Toggle sound" title="Sound on / off">
+    <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5a.8.8 0 0 1 1.5.5v14a.8.8 0 0 1-1.5.5z"/></svg>
+    <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5a.8.8 0 0 1 1.5.5v14a.8.8 0 0 1-1.5.5z"/><path d="M16 10l4 4M20 10l-4 4"/></svg>
+  </button>
+</header>
+
+<main>
+  <div class="stage">
+    <div class="statusbar">
+      <div id="statusChip" class="chip" hidden><span class="dot"></span><span id="statusText">Watch</span></div>
+      <div id="roundChip" class="chip" hidden>Round <span class="num" id="roundNum">1</span></div>
+    </div>
+
+    <div id="grid" class="grid" aria-label="Memory grid"></div>
+
+    <div id="startScreen" class="screen">
+      <h1>Memory Grid</h1>
+      <p>Watch the tiles light up, then tap them back in the same order. Each round adds one more.</p>
+      <button id="startBtn" class="btn pulse">Start game</button>
+      <div class="best-line" id="startBest" hidden></div>
+    </div>
+
+    <div id="overScreen" class="screen" hidden>
+      <h1>Game over</h1>
+      <div class="score-big" id="finalScore">0</div>
+      <div class="score-label">Longest sequence</div>
+      <button id="againBtn" class="btn">Play again</button>
+      <div class="best-line" id="overBest" hidden></div>
+    </div>
+
+    <div id="toast" class="toast" hidden><div class="bubble" id="toastBubble"></div></div>
+  </div>
+</main>
+
+<footer>Tap the tiles in the order they light up · <b>Enactus VIT Chennai</b></footer>
+
+<script>
+"use strict";
+
+/* ============================================================================
+   CONFIG
+   ========================================================================== */
+const CONFIG = {
+  useImages: false,
+  imageDir: "images/",
+  images: [
+    // "recycle.png","bulb.png","users.png","plant.png",
+    // "handshake.png","world.png","leaf.png","target.png",
+  ],
+  // ── OFFICIAL LOGO MARK ──────────────────────────────────────────────
+  // For a 1:1 exact match, save the real Enactus arrow (ideally an .svg with a
+  // transparent background, or a trimmed .png) into the images/ folder and put
+  // its filename here. It replaces the header mark instantly. If it's missing
+  // or fails to load, the code falls back to the recreated vector below.
+  logoFile: "",   // e.g. "enactus-arrow.svg"
+  idleAttractMs: 20000,
+  flashOnMs: 470,
+  flashGapMs: 230,
+  getReadyMs: 950,
+  nextRoundMs: 1000,
+};
+
+/* ============================================================================
+   ENACTUS ARROW MARK  —  recreated as flat two-tone vector (no gradient).
+   Two solid golds = the fold, exactly like the logo. Swap in the real asset
+   any time; nothing else depends on it.
+   ========================================================================== */
+// The Enactus origami mark, traced from the official artwork as flat vector:
+// a main sail (up-right), a left wing, and two darker fold shadows. Flat colours
+// only — the two golds are the fold facets, not a gradient.
+const ARROW_MARK = `
+  <svg viewBox="0 0 100 100" aria-hidden="true">
+    <polygon points="36,2 98,65 36,98"   fill="#FFC222"/>
+    <polygon points="36,52 2,65 36,98"   fill="#FFC222"/>
+    <polygon points="36,52 36,98 44,73"  fill="#E0A400"/>
+    <polygon points="65,44 70.5,65 67.5,53" fill="#E0A400"/>
+  </svg>`;
+// single-colour silhouette for the faint background drift (same outline)
+const ARROW_SOLID = `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M36 2 L98 65 L36 98 L2 65 L36 52 Z" fill="currentColor"/></svg>`;
+
+/* ============================================================================
+   PLACEHOLDER ICONS  —  inline outline SVGs (offline-safe, Tabler-style)
+   ========================================================================== */
+const P = 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS = [
+  `<svg viewBox="0 0 24 24" ${P}><path d="M5 21c.5-4.5 3-8 8-9"/><path d="M5 21c-1-8 4-14 15-14 0 6-2 13-11 13-2 0-4-.5-4-.5"/></svg>`,          // leaf
+  `<svg viewBox="0 0 24 24" ${P}><path d="M9 18h6"/><path d="M10 21h4"/><path d="M8.5 15a5 5 0 1 1 7 0c-.7.7-1 1.3-1 2.5H9.5c0-1.2-.3-1.8-1-2.5z"/></svg>`, // bulb
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 4l2.5 4.3"/><path d="M12 4 9.5 8.3"/><path d="M4.8 16.5 7.3 12"/><path d="m4.8 16.5 5 .2"/><path d="M19.2 16.5 16.7 12"/><path d="m19.2 16.5-5 .2"/><path d="M8 20h8"/></svg>`, // recycle
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 20s-7-4.3-7-9.3A3.7 3.7 0 0 1 12 8a3.7 3.7 0 0 1 7 2.7c0 5-7 9.3-7 9.3z"/></svg>`,   // heart
+  `<svg viewBox="0 0 24 24" ${P}><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c2.5 2.3 2.5 13.7 0 16"/><path d="M12 4c-2.5 2.3-2.5 13.7 0 16"/></svg>`, // globe
+  `<svg viewBox="0 0 24 24" ${P}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2"/></svg>`, // target
+  `<svg viewBox="0 0 24 24" ${P}><circle cx="9" cy="9" r="2.6"/><path d="M4 19a5 5 0 0 1 10 0"/><path d="M15 7a2.6 2.6 0 0 1 0 5"/><path d="M16.5 14.5A5 5 0 0 1 20 19"/></svg>`, // users
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 20v-7"/><path d="M12 13c0-3 2-5 5-5 0 3-2 5-5 5z"/><path d="M12 15c0-3-2-4-5-4 0 3 2 4 5 4z"/></svg>`, // sprout
+  `<svg viewBox="0 0 24 24" ${P}><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>`, // sun
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 3.5c3.5 4 6 6.8 6 9.8A6 6 0 0 1 6 13.3c0-3 2.5-5.8 6-9.8z"/></svg>`, // droplet
+  `<svg viewBox="0 0 24 24" ${P}><path d="M4 13l4-1 3 2 4-.5c1.5 0 1.5 2 0 2l-3 .5"/><path d="M4 13v6"/><path d="M12 9.5s-3-1.6-3-3.4A1.6 1.6 0 0 1 12 5a1.6 1.6 0 0 1 3 1.1c0 1.8-3 3.4-3 3.4z"/></svg>`, // hand-heart
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 6c-1.5-1.3-4-1.5-6-1v12c2-.5 4.5-.3 6 1"/><path d="M12 6c1.5-1.3 4-1.5 6-1v12c-2-.5-4.5-.3-6 1z"/><path d="M12 6v13"/></svg>`, // book
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 4l2.3 4.7 5.2.8-3.8 3.6.9 5.1L12 15.9 7.4 18.3l.9-5.1L4.5 9.5l5.2-.8z"/></svg>`, // star
+  `<svg viewBox="0 0 24 24" ${P}><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>`, // home
+  `<svg viewBox="0 0 24 24" ${P}><path d="M13 3 5 13h6l-1 8 8-10h-6z"/></svg>`, // bolt
+  `<svg viewBox="0 0 24 24" ${P}><path d="M12 12v8"/><path d="M12 12c0-3.3 2.7-6 6-6 0 3.3-2.7 6-6 6z"/><path d="M4 15a5 5 0 0 0 8 4 5 5 0 0 0-8-4z"/></svg>`, // seed
+];
+
+/* ============================================================================
+   AUDIO  —  Web Audio API, tones generated on the fly (no files)
+   ========================================================================== */
+let actx = null;
+let muted = localStorage.getItem("egm_muted") === "1";
+
+function initAudio(){
+  if(!actx){
+    try{ actx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ actx = null; }
+  }
+  if(actx && actx.state === "suspended") actx.resume();
+}
+function tone(freq, dur, type="sine", vol=0.22, when=0){
+  if(muted || !actx) return;
+  const t = actx.currentTime + when;
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  o.connect(g); g.connect(actx.destination);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.start(t); o.stop(t + dur + 0.03);
+}
+function tileFreq(i){
+  const deg = [0,2,4,7,9];
+  const semis = deg[i % 5] + 12 * Math.floor(i / 5);
+  return 261.63 * Math.pow(2, semis / 12);
+}
+const sndTile  = (i)=> tone(tileFreq(i), 0.42, "sine", 0.22);
+const sndGood  = ()=> tone(880, 0.12, "triangle", 0.20);
+const sndWrong = ()=>{ tone(150, 0.45, "sawtooth", 0.18); tone(110, 0.45, "sine", 0.16); };
+const sndDing  = ()=>{ tone(659.25, 0.16, "sine", 0.22); tone(987.77, 0.32, "sine", 0.20, 0.12); };
+const sndStart = ()=>{ tone(523.25, 0.14, "sine", 0.2); tone(783.99, 0.22, "sine", 0.2, 0.1); };
+
+/* ============================================================================
+   ELEMENTS
+   ========================================================================== */
+const bgEl       = document.getElementById("bg");
+const brandMark  = document.getElementById("brandMark");
+const gridEl     = document.getElementById("grid");
+const muteBtn    = document.getElementById("muteBtn");
+const statusChip = document.getElementById("statusChip");
+const statusText = document.getElementById("statusText");
+const roundChip  = document.getElementById("roundChip");
+const roundNum   = document.getElementById("roundNum");
+const startScreen= document.getElementById("startScreen");
+const overScreen = document.getElementById("overScreen");
+const startBtn   = document.getElementById("startBtn");
+const againBtn   = document.getElementById("againBtn");
+const finalScore = document.getElementById("finalScore");
+const toast      = document.getElementById("toast");
+const toastBubble= document.getElementById("toastBubble");
+const startBest  = document.getElementById("startBest");
+const overBest   = document.getElementById("overBest");
+
+/* ============================================================================
+   STATE
+   ========================================================================== */
+const GRID_SIZE = 16;
+let sequence = [];
+let inputIndex = 0;
+let round = 1;
+let phase = "start";      // start | playing | input | over
+let generation = 0;
+let tapLock = false;
+let bestScore = parseInt(localStorage.getItem("egm_best") || "0", 10);
+
+const tiles = [];
+const wait = (ms)=> new Promise(r => setTimeout(r, ms));
+
+/* ── Brand mark (official file if provided, else recreated vector) ── */
+function renderBrandMark(){
+  if(CONFIG.logoFile){
+    const img = new Image();
+    img.alt = "Enactus";
+    img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;";
+    img.onload  = ()=>{ brandMark.innerHTML = ""; brandMark.appendChild(img); };
+    img.onerror = ()=>{ brandMark.innerHTML = ARROW_MARK; };
+    img.src = CONFIG.imageDir + CONFIG.logoFile;
+  }else{
+    brandMark.innerHTML = ARROW_MARK;
+  }
+}
+
+/* ── Background drift ───────────────────────────────── */
+function buildBackground(){
+  // {left%, top%, size px, colour, opacity, rotate, duration s, delay s}
+  const arrows = [
+    [ 6,  16, 150, "var(--gray)",      .05, -18,  9,  0],
+    [82,  10, 110, "var(--gold-dark)", .10,  22, 11, -2],
+    [88,  62, 190, "var(--gray)",      .045, -8, 12, -5],
+    [12,  70, 130, "var(--gold-dark)", .08,  14, 10, -3],
+    [46,  86,  90, "var(--gray)",      .05,  30,  8, -1],
+    [70,  40,  70, "var(--gray)",      .04, -26, 13, -6],
+  ];
+  bgEl.innerHTML = "";
+  for(const [l,t,s,c,o,r,dur,del] of arrows){
+    const el = document.createElement("span");
+    el.className = "bg-arrow";
+    el.style.cssText =
+      `left:${l}%;top:${t}%;width:${s}px;height:${s}px;color:${c};opacity:${o};`+
+      `--r:${r}deg;animation-duration:${dur}s;animation-delay:${del}s;`;
+    el.innerHTML = ARROW_SOLID;
+    bgEl.appendChild(el);
+  }
+}
+
+/* ── Grid ───────────────────────────────────────────── */
+function buildGrid(){
+  gridEl.innerHTML = "";
+  tiles.length = 0;
+  for(let i=0;i<GRID_SIZE;i++){
+    const tile = document.createElement("button");
+    tile.className = "tile";
+    tile.type = "button";
+    tile.dataset.index = i;
+    tile.setAttribute("aria-label", "tile " + (i+1));
+
+    const inner = document.createElement("span");
+    inner.className = "tile-inner";
+    const overlay = document.createElement("span");
+    overlay.className = "lit-overlay";
+    const iconWrap = document.createElement("span");
+    iconWrap.className = "tile-icon";
+    iconWrap.innerHTML = ICONS[i % ICONS.length];
+    inner.appendChild(overlay);
+    inner.appendChild(iconWrap);
+
+    if(CONFIG.useImages && CONFIG.images.length){
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = CONFIG.imageDir + CONFIG.images[i % CONFIG.images.length];
+      img.addEventListener("load",  ()=>{ iconWrap.style.display = "none"; });
+      img.addEventListener("error", ()=>{ img.remove(); iconWrap.style.display = ""; });
+      inner.appendChild(img);
+    }
+
+    tile.appendChild(inner);
+    tile.addEventListener("pointerdown", ()=> onTileTap(i, tile));
+    tiles.push(tile);
+    gridEl.appendChild(tile);
+  }
+}
+
+/* ── Status helpers ─────────────────────────────────── */
+function showStatus(text, mode){
+  statusChip.hidden = false;
+  statusText.textContent = text;
+  statusChip.className = "chip" + (mode ? " " + mode : "");
+}
+function hideStatus(){ statusChip.hidden = true; roundChip.hidden = true; }
+function setRound(n, bounce){
+  roundChip.hidden = false;
+  roundNum.textContent = n;
+  if(bounce){ roundChip.classList.remove("bounce"); void roundChip.offsetWidth; roundChip.classList.add("bounce"); }
+}
+function showToast(main, sub){ toastBubble.innerHTML = main + (sub ? `<small>${sub}</small>` : ""); toast.hidden = false; }
+function hideToast(){ toast.hidden = true; }
+
+/* ── Flash ──────────────────────────────────────────── */
+async function flashTile(i){
+  const tile = tiles[i];
+  tile.classList.add("lit");
+  sndTile(i);
+  await wait(CONFIG.flashOnMs);
+  tile.classList.remove("lit");
+  await wait(CONFIG.flashGapMs);
+}
+
+/* ============================================================================
+   FLOW
+   ========================================================================== */
+function startGame(){
+  initAudio(); sndStart(); stopAttract();
+  startScreen.hidden = true; overScreen.hidden = true;
+  sequence = []; round = 1;
+  nextRound(true);
+}
+function nextRound(first){
+  sequence.push(Math.floor(Math.random() * GRID_SIZE));
+  round = sequence.length;
+  setRound(round, !first);
+  playSequence();
+}
+async function playSequence(){
+  phase = "playing";
+  const gen = ++generation;
+  inputIndex = 0;
+  gridEl.classList.add("locked");
+  showStatus("Get ready…", "watch");
+  await wait(CONFIG.getReadyMs);
+  if(gen !== generation) return;
+  showStatus("Watch", "watch");
+  for(let i=0;i<sequence.length;i++){
+    if(gen !== generation) return;
+    await flashTile(sequence[i]);
+  }
+  if(gen !== generation) return;
+  phase = "input";
+  gridEl.classList.remove("locked");
+  showStatus("Your turn", "turn");
+}
+function onTileTap(i, tile){
+  if(phase !== "input" || tapLock) return;
+  tile.classList.add("press");
+  setTimeout(()=> tile.classList.remove("press"), 140);
+  tapLock = true;
+  setTimeout(()=> tapLock = false, 130);
+
+  if(i === sequence[inputIndex]){
+    sndGood();
+    tile.classList.add("good");
+    setTimeout(()=> tile.classList.remove("good"), 200);
+    inputIndex++;
+    if(inputIndex === sequence.length) roundComplete();
+  }else{
+    gameOver(tile);
+  }
+}
+function roundComplete(){
+  phase = "playing";
+  gridEl.classList.add("locked");
+  sndDing(); hideStatus();
+  showToast("Nice!", "Next round · " + (round + 1) + " tiles");
+  setTimeout(()=>{
+    hideToast();
+    if(phase !== "playing") return;
+    nextRound(false);
+  }, CONFIG.nextRoundMs);
+}
+function gameOver(tile){
+  phase = "over";
+  ++generation;
+  gridEl.classList.add("locked");
+  sndWrong();
+  if(tile){
+    tile.classList.add("bad","shake");
+    setTimeout(()=> tile.classList.remove("bad","shake"), 450);
+  }
+  const score = round - 1;
+  if(score > bestScore){ bestScore = score; localStorage.setItem("egm_best", String(bestScore)); }
+  setTimeout(()=>{
+    hideStatus();
+    finalScore.textContent = score;
+    updateBestLines();
+    overScreen.hidden = false;
+  }, 700);
+}
+function resetToStart(){
+  ++generation;
+  phase = "start";
+  overScreen.hidden = true;
+  gridEl.classList.add("locked");
+  hideStatus(); hideToast();
+  updateBestLines();
+  startScreen.hidden = false;
+  startBtn.classList.add("pulse");
+  resetIdle();
+}
+function updateBestLines(){
+  const txt = bestScore > 0 ? ("Best today: " + bestScore) : "";
+  startBest.hidden = bestScore === 0; overBest.hidden = bestScore === 0;
+  startBest.textContent = txt; overBest.textContent = txt;
+}
+
+/* ============================================================================
+   ATTRACT MODE
+   ========================================================================== */
+let idleTimer = null, attractTimer = null;
+function resetIdle(){
+  clearTimeout(idleTimer); stopAttract();
+  if(phase === "start") idleTimer = setTimeout(startAttract, CONFIG.idleAttractMs);
+}
+function startAttract(){
+  if(phase !== "start" || attractTimer) return;
+  const glow = ()=>{
+    if(phase !== "start"){ stopAttract(); return; }
+    const t = tiles[Math.floor(Math.random() * GRID_SIZE)];
+    t.classList.remove("attract"); void t.offsetWidth; t.classList.add("attract");
+    setTimeout(()=> t.classList.remove("attract"), 1600);
+  };
+  glow();
+  attractTimer = setInterval(glow, 900);
+}
+function stopAttract(){
+  clearInterval(attractTimer); attractTimer = null;
+  tiles.forEach(t => t.classList.remove("attract"));
+}
+
+/* ============================================================================
+   MUTE + WIRING
+   ========================================================================== */
+function applyMute(){ muteBtn.classList.toggle("muted", muted); localStorage.setItem("egm_muted", muted ? "1" : "0"); }
+muteBtn.addEventListener("click", ()=>{ initAudio(); muted = !muted; applyMute(); if(!muted) sndGood(); });
+startBtn.addEventListener("click", startGame);
+againBtn.addEventListener("click", resetToStart);
+["pointerdown","keydown","mousemove","touchstart"].forEach(ev=>{
+  window.addEventListener(ev, ()=>{ resetIdle(); }, { passive:true });
+});
+gridEl.addEventListener("contextmenu", e => e.preventDefault());
+
+/* ── Boot ───────────────────────────────────────────── */
+renderBrandMark();
+buildBackground();
+buildGrid();
+applyMute();
+updateBestLines();
+gridEl.classList.add("locked");
+resetIdle();
+</script>
