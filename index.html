@@ -76,8 +76,10 @@
   .brand-text{ line-height:1; min-width:0; }
   .wordmark{ font-weight:700; font-size:19px; letter-spacing:.5px; color:#fff; } /* lowercase, like the logo */
   .brand-sub{ font-size:11px; font-weight:500; color:#B9BABC; letter-spacing:.2px; margin-top:3px; white-space:nowrap; }
-  .brand-div{ width:1px; height:30px; background:rgba(255,255,255,.16); flex:0 0 auto; }
-  .game-label{ font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--gold); white-space:nowrap; }
+  /* Drop the divider + label to sit on the line between "enactus" and
+     "VIT CHENNAI" so MEMORY GRID reads level with that split. */
+  .brand-div{ width:1px; height:30px; background:rgba(255,255,255,.16); flex:0 0 auto; transform:translateY(11px); }
+  .game-label{ font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--gold); white-space:nowrap; transform:translateY(11px); }
 
   .icon-btn{
     width:44px; height:44px; border-radius:var(--radius-sm); flex:0 0 auto;
