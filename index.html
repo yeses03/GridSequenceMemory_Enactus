@@ -1,5 +1,5 @@
 <!--
-  Enactus VIT Chennai — Memory Grid
+  Enactus VIT Chennai - Memory Grid
   Single self-contained file. No build tools, no server, no external network needed.
   Just open this file in any browser.
 
@@ -137,7 +137,7 @@
   .tile svg,.tile img{ position:relative; z-index:2; width:44%; height:44%; object-fit:contain; transition:transform .16s ease, color .16s ease; }
   .tile img{ width:72%; height:72%; border-radius:9px; }
 
-  /* solid gold flash — no gradient, no glow */
+  /* solid gold flash - no gradient, no glow */
   .tile.lit{ border-color:var(--gold-dark); }
   .tile.lit .lit-overlay{ opacity:1; }
   .tile.lit svg{ color:var(--ink); transform:scale(1.1); }
@@ -148,7 +148,7 @@
   .tile.good .lit-overlay{ opacity:1; }
   .tile.good svg{ color:var(--ink); transform:scale(1.08); }
 
-  /* wrong tap = dark flash + shake (no red — stays on brand) */
+  /* wrong tap = dark flash + shake (no red - stays on brand) */
   .tile.bad .lit-overlay{ background:var(--ink); opacity:1; }
   .tile.bad svg{ color:#fff; }
   .tile.shake{ animation:shake .42s cubic-bezier(.36,.07,.19,.97); }
@@ -281,7 +281,7 @@ const CONFIG = {
 };
 
 /* ============================================================================
-   ENACTUS ARROW MARK  —  recreated as flat two-tone vector (no gradient).
+   ENACTUS ARROW MARK  -  recreated as flat two-tone vector (no gradient).
    Two solid golds = the fold, exactly like the logo. Swap in the real asset
    any time; nothing else depends on it.
    ========================================================================== */
@@ -297,7 +297,7 @@ const ARROW_MARK = `
 const ARROW_SOLID = `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M36 2 L98 65 L36 98 L2 65 L36 52 Z" fill="currentColor"/></svg>`;
 
 /* ============================================================================
-   PLACEHOLDER ICONS  —  inline outline SVGs (offline-safe, Tabler-style)
+   PLACEHOLDER ICONS  -  inline outline SVGs (offline-safe, Tabler-style)
    ========================================================================== */
 const P = 'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
 const ICONS = [
@@ -320,7 +320,7 @@ const ICONS = [
 ];
 
 /* ============================================================================
-   AUDIO  —  Web Audio API, tones generated on the fly (no files)
+   AUDIO  -  Web Audio API, tones generated on the fly (no files)
    ========================================================================== */
 let actx = null;
 let muted = localStorage.getItem("egm_muted") === "1";
@@ -434,7 +434,7 @@ function buildGrid(){
   tiles.length = 0;
 
   // Shuffle the image set each load so every image circulates across the
-  // grid — with more images than tiles, a different subset shows each time.
+  // grid - with more images than tiles, a different subset shows each time.
   let imgPool = [];
   if(CONFIG.useImages && CONFIG.images.length){
     imgPool = CONFIG.images.slice();
