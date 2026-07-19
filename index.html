@@ -3,13 +3,6 @@
   Single self-contained file. No build tools, no server, no external network needed.
   Just open this file in any browser.
 
-  ── SWAPPING IN REAL IMAGES LATER ────────────────────────────────────────────
-  1. Drop your images into an `images/` folder next to this file.
-  2. In the CONFIG block near the top of the <script>, set:  useImages: true
-  3. List your filenames in CONFIG.images (8–16 of them).
-  If an image is missing / fails to load, the tile automatically falls back to
-  its placeholder icon — the game logic never changes.
-
   DESIGN: solid colours only (no gradients), flat surfaces, Enactus black/gold/
   white/gray palette, geometric type (Montserrat / Avenir Next). The faint
   drifting arrows in the background are the Enactus mark, recreated as vector.
@@ -277,11 +270,7 @@ const CONFIG = {
     // "recycle.png","bulb.png","users.png","plant.png",
     // "handshake.png","world.png","leaf.png","target.png",
   ],
-  // ── OFFICIAL LOGO MARK ──────────────────────────────────────────────
-  // For a 1:1 exact match, save the real Enactus arrow (ideally an .svg with a
-  // transparent background, or a trimmed .png) into the images/ folder and put
-  // its filename here. It replaces the header mark instantly. If it's missing
-  // or fails to load, the code falls back to the recreated vector below.
+  
   logoFile: "",   // e.g. "enactus-arrow.svg"
   idleAttractMs: 20000,
   flashOnMs: 470,
@@ -295,9 +284,7 @@ const CONFIG = {
    Two solid golds = the fold, exactly like the logo. Swap in the real asset
    any time; nothing else depends on it.
    ========================================================================== */
-// The Enactus origami mark, traced from the official artwork as flat vector:
-// a main sail (up-right), a left wing, and two darker fold shadows. Flat colours
-// only — the two golds are the fold facets, not a gradient.
+
 const ARROW_MARK = `
   <svg viewBox="0 0 100 100" aria-hidden="true">
     <polygon points="36,2 98,65 36,98"   fill="#FFC222"/>
@@ -403,7 +390,7 @@ let bestScore = parseInt(localStorage.getItem("egm_best") || "0", 10);
 const tiles = [];
 const wait = (ms)=> new Promise(r => setTimeout(r, ms));
 
-/* ── Brand mark (official file if provided, else recreated vector) ── */
+/* ── Brand mark  ── */
 function renderBrandMark(){
   if(CONFIG.logoFile){
     const img = new Image();
