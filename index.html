@@ -1,4 +1,4 @@
-<!--
+c<!--
   Enactus VIT Chennai - Memory Grid
   Single self-contained file. No build tools, no server, no external network needed.
   Just open this file in any browser.
@@ -279,10 +279,72 @@ const CONFIG = {
 
   logoFile: "logo-full.png",   // full Enactus VIT Chennai lockup in the header
   idleAttractMs: 20000,
-  flashOnMs: 470,
-  flashGapMs: 230,
-  getReadyMs: 950,
+  flashOnMs: 470,              // base ON-time on round 1 (scaled down each round below)
+  flashGapMs: 230,            // base gap between flashes on round 1
+  getReadyMs: 950,           // base "Get ready" pause on round 1
   nextRoundMs: 1000,
+};
+
+/* ============================================================================
+   DIFFICULTY TUNING  —  expo pacing controls.
+   Everything that makes the game ramp up lives here so it's easy to tweak
+   later. Target: an average passer-by clears ~4–5 rounds before losing, while
+   it still FEELS fair ("I almost had it", not "the game cheated"). None of
+   these settings alter the correct sequence or ignore correct taps — they only
+   increase cognitive load. Turn any knob toward 1.0 / larger ms to make the
+   game easier; toward 0 / smaller ms to make it harder.
+   ========================================================================== */
+const DIFFICULTY = {
+  /* #1 Faster playback every round — multiply the flash ON-time by this each
+     round (0.935 ≈ ~6.5% faster per round; keep between 0.92–0.95 for 5–8%). */
+  flashOnDecayPerRound: 0.935,
+  flashOnMinMs:         210,   // floor so a flash is always readable (fairness)
+
+  /* #2 Reduce the pause between tiles as rounds climb (0.92 ≈ 8% tighter/round). */
+  flashGapDecayPerRound: 0.92,
+  flashGapMinMs:         90,
+
+  /* #3 Shorter memorization — start trimming the "Get ready" pause past this
+     round, shaving getReadyPerRoundMs each round, down to a floor. */
+  getReadyShrinkAfterRound: 3,
+  getReadyPerRoundMs:       90,
+  getReadyMinMs:            350,
+
+  /* #4 Similar-looking distraction — one faint decoy flash of an UNRELATED tile,
+     at most once per round, only from decoyStartRound on. Opacity is kept far
+     below a real flash (1.0) so it reads as peripheral movement, never a step. */
+  decoyStartRound: 4,
+  decoyChance:     0.85,       // probability a decoy fires in an eligible round
+  decoyMinMs:      100,        // faint flash duration window (100–150 ms)
+  decoyMaxMs:      150,
+  decoyOpacity:    0.14,       // MUST stay low — never a real flash's brightness
+
+  /* #5 Randomize flash timing — jitter each tile's ON-time by ±this many ms
+     (40–60) so players can't lock onto a steady rhythm. */
+  flashJitterMs: 50,
+
+  /* #6 Final-few rush — once the sequence is longer than finalRushOverLength,
+     speed up the last finalRushTiles tiles by finalRushFactor. */
+  finalRushOverLength: 5,
+  finalRushTiles:      3,
+  finalRushFactor:     0.82,   // 0.82 ≈ last few tiles play 18% faster
+
+  /* #7 Tiny input pressure — hidden timers (NO visible countdown). End gently
+     with "Too Slow!" if the player waits too long. */
+  firstTapMs:   3000,          // max wait before the very first tap
+  betweenTapMs: 2000,          // max wait between consecutive taps
+
+  /* #8 Better sequence generation — bias toward harder-to-track sequences. */
+  minTileDistance: 2,          // prefer the next tile ≥ this far (Chebyshev) away
+  cornerJumpChance: 0.22,      // chance to leap toward an opposite corner
+
+  /* #9 Slight visual confusion — after confusionStartRound, during the player's
+     turn, softly pulse ONE idle tile every confusionMin–Max ms. Even fainter
+     than the decoy; pure peripheral distraction. */
+  confusionStartRound: 5,
+  confusionMinMs:      6000,
+  confusionMaxMs:      8000,
+  confusionOpacity:    0.08,
 };
 
 /* ============================================================================
@@ -502,26 +564,148 @@ function showToast(main, sub){ toastBubble.innerHTML = main + (sub ? `<small>${s
 function hideToast(){ toast.hidden = true; }
 
 /* ── Flash ──────────────────────────────────────────── */
-async function flashTile(i){
+// Now takes the ON-time and gap for THIS tile (varies by round / jitter / rush).
+async function flashTile(i, onMs, gapMs){
   const tile = tiles[i];
   tile.classList.add("lit");
   sndTile(i);
-  await wait(CONFIG.flashOnMs);
+  await wait(onMs);
   tile.classList.remove("lit");
-  await wait(CONFIG.flashGapMs);
+  await wait(gapMs);
 }
+
+/* ============================================================================
+   DIFFICULTY HELPERS  (see DIFFICULTY config for tuning)
+   ========================================================================== */
+
+/* #1 Flash ON-time shrinks a fixed % every round, floored so it stays readable. */
+function roundFlashOn(){
+  const ms = CONFIG.flashOnMs * Math.pow(DIFFICULTY.flashOnDecayPerRound, round - 1);
+  return Math.max(DIFFICULTY.flashOnMinMs, ms);
+}
+/* #2 Gap between flashes tightens every round, floored. */
+function roundFlashGap(){
+  const ms = CONFIG.flashGapMs * Math.pow(DIFFICULTY.flashGapDecayPerRound, round - 1);
+  return Math.max(DIFFICULTY.flashGapMinMs, ms);
+}
+/* #3 "Get ready" pause is trimmed once we're past the threshold round. */
+function roundGetReady(){
+  let ms = CONFIG.getReadyMs;
+  if(round > DIFFICULTY.getReadyShrinkAfterRound){
+    ms -= (round - DIFFICULTY.getReadyShrinkAfterRound) * DIFFICULTY.getReadyPerRoundMs;
+  }
+  return Math.max(DIFFICULTY.getReadyMinMs, ms);
+}
+
+/* #8 Pick the next tile with a bias toward harder-to-track sequences: no
+   immediate repeats, no A-B-A oscillation, spread across the grid, and the
+   occasional leap to an opposite corner. The result is still perfectly
+   learnable — we never touch a tile the player has already been shown. */
+const GEN_COLS = 4;
+function tileRC(i){ return { r: Math.floor(i / GEN_COLS), c: i % GEN_COLS }; }
+function tileCheb(a, b){                      // Chebyshev (king-move) distance
+  const A = tileRC(a), B = tileRC(b);
+  return Math.max(Math.abs(A.r - B.r), Math.abs(A.c - B.c));
+}
+const GEN_CORNERS = [0, 3, 12, 15];
+function nextTile(){
+  const prev  = sequence.length     ? sequence[sequence.length - 1] : -1;
+  const prev2 = sequence.length > 1 ? sequence[sequence.length - 2] : -1;
+
+  if(prev < 0) return Math.floor(Math.random() * GRID_SIZE);   // first tile: anywhere
+
+  // occasionally jump toward the corner farthest from the previous tile
+  if(Math.random() < DIFFICULTY.cornerJumpChance){
+    let far = GEN_CORNERS[0], best = -1;
+    for(const c of GEN_CORNERS){ const d = tileCheb(prev, c); if(d > best){ best = d; far = c; } }
+    if(far !== prev) return far;
+  }
+
+  // otherwise: spread out from prev, avoid immediate repeat and A-B-A clustering
+  let pool = [];
+  for(let k = 0; k < GRID_SIZE; k++){
+    if(k === prev || k === prev2) continue;                    // no repeat / no oscillation
+    if(tileCheb(prev, k) < DIFFICULTY.minTileDistance) continue; // must be far enough apart
+    pool.push(k);
+  }
+  if(!pool.length){                                            // fallback: any non-repeat
+    for(let k = 0; k < GRID_SIZE; k++) if(k !== prev) pool.push(k);
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* #4 Schedule at most one faint decoy flash on an UNRELATED (non-sequence) tile
+   somewhere in the middle of the watch phase. Guarded by generation so it never
+   leaks into the next round. Uses the lit-overlay at very low opacity — same
+   gold, far dimmer than a real flash, so it feels like peripheral movement. */
+function maybeScheduleDecoy(gen){
+  if(round < DIFFICULTY.decoyStartRound) return;
+  if(Math.random() > DIFFICULTY.decoyChance) return;
+
+  // prefer a tile NOT in the sequence so it can never be mistaken for a real step
+  let pool = [];
+  for(let k = 0; k < GRID_SIZE; k++) if(!sequence.includes(k)) pool.push(k);
+  if(!pool.length) pool = [Math.floor(Math.random() * GRID_SIZE)];
+  const idx = pool[Math.floor(Math.random() * pool.length)];
+
+  // fire roughly 30–70% of the way through the sequence, between two flashes
+  const step  = roundFlashOn() + roundFlashGap();
+  const at    = Math.floor(sequence.length * (0.3 + Math.random() * 0.4));
+  const delay = at * step + roundFlashGap() * 0.5;
+
+  setTimeout(()=>{
+    if(gen !== generation || phase !== "playing") return;
+    const overlay = tiles[idx].querySelector(".lit-overlay");
+    if(!overlay) return;
+    const dur = DIFFICULTY.decoyMinMs + Math.random() * (DIFFICULTY.decoyMaxMs - DIFFICULTY.decoyMinMs);
+    overlay.style.opacity = String(DIFFICULTY.decoyOpacity);   // faint — never a real flash
+    setTimeout(()=>{ overlay.style.opacity = ""; }, dur);
+  }, delay);
+}
+
+/* #7 Hidden input-pressure timers. No countdown is ever shown — if the player
+   stalls, the game ends gently with a "Too Slow!" message. */
+let inputTimer = null;
+function armInputTimer(ms){ clearTimeout(inputTimer); inputTimer = setTimeout(onInputTimeout, ms); }
+function clearInputTimer(){ clearTimeout(inputTimer); inputTimer = null; }
+function onInputTimeout(){ if(phase === "input") tooSlowGameOver(); }
+
+/* #9 After confusionStartRound, during the player's turn, softly pulse one idle
+   tile every 6–8s. Fainter than the decoy and never the tile the player must
+   tap next, so it stays a peripheral distraction and never a hint or a step. */
+let confusionTimer = null;
+function startConfusion(){
+  stopConfusion();
+  if(round < DIFFICULTY.confusionStartRound) return;
+  const tick = ()=>{
+    if(phase !== "input"){ stopConfusion(); return; }
+    const next = sequence[inputIndex];                 // never pulse the correct-next tile
+    let idx; do { idx = Math.floor(Math.random() * GRID_SIZE); } while(idx === next);
+    const overlay = tiles[idx].querySelector(".lit-overlay");
+    if(overlay){
+      overlay.style.opacity = String(DIFFICULTY.confusionOpacity);
+      setTimeout(()=>{ overlay.style.opacity = ""; }, 260);
+    }
+    const gap = DIFFICULTY.confusionMinMs + Math.random() * (DIFFICULTY.confusionMaxMs - DIFFICULTY.confusionMinMs);
+    confusionTimer = setTimeout(tick, gap);
+  };
+  const first = DIFFICULTY.confusionMinMs + Math.random() * (DIFFICULTY.confusionMaxMs - DIFFICULTY.confusionMinMs);
+  confusionTimer = setTimeout(tick, first);
+}
+function stopConfusion(){ clearTimeout(confusionTimer); confusionTimer = null; }
 
 /* ============================================================================
    FLOW
    ========================================================================== */
 function startGame(){
   initAudio(); sndStart(); stopAttract();
+  clearInputTimer(); stopConfusion();   // #7/#9 clear any leftover difficulty timers
   startScreen.hidden = true; overScreen.hidden = true;
   sequence = []; round = 1;
   nextRound(true);
 }
 function nextRound(first){
-  sequence.push(Math.floor(Math.random() * GRID_SIZE));
+  sequence.push(nextTile());        // #8 smarter, harder-to-track sequence growth
   round = sequence.length;
   setRound(round, !first);
   playSequence();
@@ -532,17 +716,35 @@ async function playSequence(){
   inputIndex = 0;
   gridEl.classList.add("locked");
   showStatus("Get ready…", "watch");
-  await wait(CONFIG.getReadyMs);
+  await wait(roundGetReady());      // #3 memorization window shrinks past round 3
   if(gen !== generation) return;
   showStatus("Watch", "watch");
+
+  const baseOn = roundFlashOn();    // #1 flashes get faster each round
+  const gap    = roundFlashGap();   // #2 gap between flashes tightens each round
+
+  maybeScheduleDecoy(gen);          // #4 at most one faint decoy flash this round
+
   for(let i=0;i<sequence.length;i++){
     if(gen !== generation) return;
-    await flashTile(sequence[i]);
+
+    let on = baseOn;
+    on += (Math.random() * 2 - 1) * DIFFICULTY.flashJitterMs;   // #5 ±jitter breaks the rhythm
+    // #6 rush the last few tiles once the sequence gets long
+    if(sequence.length > DIFFICULTY.finalRushOverLength &&
+       i >= sequence.length - DIFFICULTY.finalRushTiles){
+      on *= DIFFICULTY.finalRushFactor;
+    }
+    on = Math.max(DIFFICULTY.flashOnMinMs, on);                 // keep it readable (fairness)
+
+    await flashTile(sequence[i], on, gap);
   }
   if(gen !== generation) return;
   phase = "input";
   gridEl.classList.remove("locked");
   showStatus("Your turn", "turn");
+  armInputTimer(DIFFICULTY.firstTapMs);   // #7 hidden deadline for the first tap
+  startConfusion();                        // #9 begin idle peripheral distraction (round 5+)
 }
 function onTileTap(i, tile){
   if(phase !== "input" || tapLock) return;
@@ -556,13 +758,20 @@ function onTileTap(i, tile){
     tile.classList.add("good");
     setTimeout(()=> tile.classList.remove("good"), 200);
     inputIndex++;
-    if(inputIndex === sequence.length) roundComplete();
+    if(inputIndex === sequence.length){
+      clearInputTimer();                       // #7 turn finished — stop the pressure timer
+      roundComplete();
+    }else{
+      armInputTimer(DIFFICULTY.betweenTapMs);  // #7 re-arm the between-tap deadline
+    }
   }else{
+    clearInputTimer();                         // #7 stop timers on a wrong tap
     gameOver(tile);
   }
 }
 function roundComplete(){
   phase = "playing";
+  clearInputTimer(); stopConfusion();   // #7/#9 the player's turn is over
   gridEl.classList.add("locked");
   sndDing(); hideStatus();
   if(round >= MAX_ROUNDS){          // cleared the final round - that's a win
@@ -580,6 +789,7 @@ function roundComplete(){
 function gameWon(){
   phase = "over";
   ++generation;
+  clearInputTimer(); stopConfusion();   // #7/#9 stop difficulty timers
   gridEl.classList.add("locked");
   sndWin();
   const score = round;   // completed all MAX_ROUNDS rounds
@@ -594,6 +804,7 @@ function gameWon(){
 function gameOver(tile){
   phase = "over";
   ++generation;
+  clearInputTimer(); stopConfusion();   // #7/#9 stop difficulty timers
   gridEl.classList.add("locked");
   sndWrong();
   if(tile){
@@ -611,9 +822,31 @@ function gameOver(tile){
     overScreen.hidden = false;
   }, 700);
 }
+/* #7 End the game gently when the hidden input-pressure timer fires. No wrong
+   tile is flashed — the player didn't make a mistake, they just stalled — so
+   we show a brief "Too Slow!" nudge before the game-over screen. */
+function tooSlowGameOver(){
+  phase = "over";
+  ++generation;
+  clearInputTimer(); stopConfusion();
+  gridEl.classList.add("locked");
+  sndWrong();
+  showToast("Too Slow!", "Keep up the pace");
+  const score = round - 1;
+  if(score > bestScore){ bestScore = score; localStorage.setItem("egm_best", String(bestScore)); }
+  setTimeout(()=>{
+    hideToast(); hideStatus();
+    finalScore.textContent = score;
+    overTitle.textContent = "Game over";
+    overLabel.textContent = "Longest sequence";
+    updateBestLines();
+    overScreen.hidden = false;
+  }, 900);
+}
 function resetToStart(){
   ++generation;
   phase = "start";
+  clearInputTimer(); stopConfusion();   // #7/#9 stop difficulty timers
   overScreen.hidden = true;
   gridEl.classList.add("locked");
   hideStatus(); hideToast();
